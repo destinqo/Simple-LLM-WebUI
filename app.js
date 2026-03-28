@@ -78,7 +78,9 @@ const dom = {
 	status: document.getElementById('status-dot'),
 	historyList: document.getElementById('history-list'),
 	sidebarLogo: document.getElementById('sidebar-logo'),
+	mobileLogo: document.getElementById('mobile-logo'),
 	sidebarAppName: document.getElementById('sidebar-app-name'),
+	mobileAppName: document.getElementById('mobile-app-name-display'),
 	appVersion: document.getElementById('app-version'),
 	exportAllBtn: document.getElementById('export-all-history'),
 	modelDisplay: document.getElementById('active-model-display'),
@@ -1427,7 +1429,10 @@ if (dom.clearAllBtn) dom.clearAllBtn.onclick = () => {
 // be reused for different deployments simply by editing config.js.
 document.title = APP_CONFIG.htmlTitle;
 if (dom.sidebarAppName) dom.sidebarAppName.innerText = APP_CONFIG.appName;
-if (dom.sidebarLogo && APP_CONFIG.logo) dom.sidebarLogo.src = APP_CONFIG.logo;
+if (APP_CONFIG.logo) {
+	if (dom.sidebarLogo) dom.sidebarLogo.src = APP_CONFIG.logo;
+	if (dom.mobileLogo) dom.mobileLogo.src = APP_CONFIG.logo;
+}
 if (dom.mobileAppName) dom.mobileAppName.innerText = APP_CONFIG.appName;
 
 // === Version Check ===
