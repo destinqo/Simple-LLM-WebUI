@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ollama UI</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"
+    integrity="sha384-zbcZAIxlvJtNE3Dp5nxLXdXtXyxwOdnILY1TDPVmKFhl4r4nSUG1r8bcFXGVa4Te"
+    crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"
+    integrity="sha384-cwS6YdhLI7XS60eoDiC+egV0qHp8zI+Cms46R0nbn8JrmoAzV9uFL60etMZhAnSu"
+    crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"
+    id="hljs-light" integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+    crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+    id="hljs-dark" integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+    crossorigin="anonymous" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"
+    integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
+    crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="custom.css" />
+  <script src="config.js"></script>
+  <script src="translations.js"></script>
+  <script>
+    (function () {
+      // DYNAMIC CSP SHIELD: Restricts network activity based on current user settings.
+      const savedUrl = localStorage.getItem('app_url');
+      const defaultUrl = (typeof APP_CONFIG !== 'undefined') ? APP_CONFIG.defaultOllamaEndpoint : 'http://localhost:11434';
+      const endpoint = (savedUrl || defaultUrl).trim().replace(/\/$/, '');
+      let origin = '';
+      try { origin = new URL(endpoint).origin; } catch (e) {
+        if (endpoint && !endpoint.startsWith('http')) {
+          try { origin = new URL('http://' + endpoint).origin; } catch (err) { }
+        }
+      }
+      const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob:; connect-src 'self' https://raw.githubusercontent.com " + (origin || '') + "; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; upgrade-insecure-requests;";
+      const meta = document.createElement('meta');
+      meta.httpEquiv = "Content-Security-Policy";
+      meta.content = csp;
+      document.head.appendChild(meta);
+    })();
+  </script>
+</head>
+
+<body class="theme-auto">
+  <div class="app-container">
+    <aside class="sidebar">
+      <button id="mobile-close-btn" class="toggle-btn" aria-label="Close Menu">
+        <svg class="icon-lg stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+          stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+      <div class="sidebar-header">
+        <button id="sidebar-toggle" class="sidebar-pill toggle-btn" title="Toggle Sidebar">
+          <svg class="icon-lg stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+            stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <div class="logo-wrapper sidebar-branding">
+          <img id="sidebar-logo" src="favicon.svg" alt="Logo" />
+          <span id="sidebar-app-name">AI UPJŠ</span>
+        </div>
+      </div>
+
+      <button id="new-chat-btn" class="sidebar-pill">
+        <svg class="icon-md stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+          stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span data-i18n="newChat"></span>
+      </button>
+      <div class="history-section">
+        <label data-i18n="history"></label>
+        <div id="history-list"></div>
+      </div>
+      <div class="sidebar-footer">
+        <button id="toggle-settings" class="sidebar-pill">
+          <svg class="icon-md stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+            </path>
+          </svg>
+          <span data-i18n="settings"></span>
+        </button>
+        <div class="footer-bottom">
+          <a href="https://github.com/destinqo/Simple-LLM-WebUI" target="_blank"
+            rel="noopener noreferrer">Simple-LLM-WebUI</a>
+          &bull; <span id="app-version"></span>
+        </div>
+      </div>
+    </aside>
+    <main class="chat-area">
+      <div id="desktop-header" class="hidden"></div>
+
+      <div id="mobile-header">
+        <button id="mobile-menu-btn" class="toggle-btn" aria-label="Menu">
+          <svg class="icon-lg stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+            stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <div class="logo-wrapper">
+          <img src="favicon.svg" alt="Logo">
+          <span id="mobile-app-name-display">AI UPJŠ</span>
+        </div>
+      </div>
+
+      <div id="chat-container"></div>
+      <div id="preview-bar" class="hidden">
+        <div class="preview-inner">
+          <div class="preview-item">
+            <img id="img-render" src="" alt="" />
+            <span id="file-name-display" class="file-preview-name"></span>
+            <button id="cancel-img">✕</button>
+          </div>
+        </div>
+      </div>
+      <div class="input-zone">
+        <form id="chat-form">
+          <input type="file" id="file-hidden" accept="image/*,.php,.js,.txt,.css,.json,.html" hidden />
+          <button type="button" id="attach-btn">+</button>
+          <textarea id="user-input" rows="1" data-i18n-placeholder="inputPlaceholder" autocomplete="off"
+            spellcheck="false" data-gramm="false"></textarea>
+          <button type="submit" id="send-btn">
+            <svg class="icon-md stroke-2-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+              stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </form>
+        <div id="info-bar">
+          <div id="status-wrapper">
+            <div id="status-dot" class="dot-offline" title="Status"></div>
+            <span id="active-model-display">---</span>
+            <span id="vram-wrapper">
+              <span class="separator">|</span>
+              <span id="vram-display">GPU/TOTAL: -/-</span>
+            </span>
+            <div id="hidden-stats" class="hidden">
+              <span id="tps-display">0.00 t/s</span>
+              <span id="duration-display">0.0s</span>
+              <span id="token-display">0 tkns</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="settings-modal" class="modal hidden">
+    <div id="settings-panel" class="settings-group">
+      <div class="modal-header-row">
+        <h3 class="m-0 opacity-80">Settings</h3>
+        <button id="close-settings" class="toggle-btn" aria-label="Close Settings">
+          <svg class="icon-lg stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+            stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="setting-row">
+        <label data-i18n="language"></label>
+        <select id="lang-select"></select>
+      </div>
+      <div class="setting-row">
+        <label data-i18n="theme"></label>
+        <div class="theme-switch-group" id="theme-switch">
+          <button type="button" class="theme-btn" data-theme="theme-auto" data-i18n-title="themeAuto">
+            <svg class="icon-sm stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+              stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </button>
+          <button type="button" class="theme-btn" data-theme="theme-light" data-i18n-title="themeLight">
+            <svg class="icon-sm stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+              stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </button>
+          <button type="button" class="theme-btn" data-theme="theme-dark" data-i18n-title="themeDark">
+            <svg class="icon-sm stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label data-i18n="chatMemory"></label>
+        <select id="memory-select">
+          <option value="4" data-i18n="memoryShort"></option>
+          <option value="12" data-i18n="memoryBalanced"></option>
+          <option value="24" data-i18n="memoryDeep"></option>
+          <option value="50" data-i18n="memoryExecutive"></option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <label data-i18n="role"></label>
+        <select id="role-select"></select>
+      </div>
+      <div class="setting-row setting-row-column">
+        <label data-i18n="systemPrompt"></label>
+        <textarea id="system-prompt" rows="3" autocomplete="off" spellcheck="false" data-gramm="false"></textarea>
+      </div>
+      <div class="setting-row" id="model-select-row">
+        <label data-i18n="model"></label>
+        <div class="flex-row flex-1">
+          <select id="model-select" class="flex-1">
+            <option value="">...</option>
+          </select>
+          <button id="refresh-models" class="icon-btn" data-i18n-title="refreshModels" title="Refresh Models">
+            <svg class="icon-sm stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+              stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <details class="advanced-settings">
+        <summary data-i18n="advancedSettings"></summary>
+        <div class="advanced-content">
+          <div class="setting-row">
+            <label data-i18n="apiEndpoint"></label>
+            <input type="text" id="endpoint-input" />
+          </div>
+          <div class="setting-row">
+            <label data-i18n="apiMode"></label>
+            <div class="flex-row flex-1">
+              <select id="api-mode" class="flex-1">
+                <option value="ollama" data-i18n="modeOllama"></option>
+                <option value="openai" data-i18n="modeOpenAI"></option>
+              </select>
+              <button type="button" id="toggle-key-view" class="icon-btn" data-i18n-title="showApiKey">
+                <svg class="icon-sm stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="api-key-wrapper">
+            <div id="api-key-container" class="hidden mt-4">
+              <div class="setting-row">
+                <label data-i18n="apiKey"></label>
+                <input type="password" id="api-key" placeholder="EMPTY" />
+              </div>
+            </div>
+          </div>
+          <div class="setting-row mt-4">
+            <label data-i18n="showStats"></label>
+            <label class="switch">
+              <input type="checkbox" id="show-stats-check">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <hr />
+      <div class="flex-row mt-4">
+        <button id="export-all-history" class="compact-action-btn flex-1">
+          <svg class="icon-sm stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span data-i18n="exportAll"></span>
+        </button>
+        <button id="clear-all-history" class="compact-action-btn danger-btn-text flex-1">
+          <svg class="icon-sm stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+            stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+          <span data-i18n="clearHistory"></span>
+        </button>
+      </div>
+
+      <hr />
+      <button id="save-settings-btn" class="primary-btn-modal">
+        <svg class="icon-md stroke-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+          <polyline points="7 3 7 8 15 8"></polyline>
+        </svg>
+        <span data-i18n="saveSettings"></span>
+      </button>
+    </div>
+  </div>
+  <script src="app.js?v=12"></script>
+</body>
+
+</html>

@@ -1,0 +1,14 @@
+const APP_CONFIG = {
+	appName: "Simple LLM - WebUI",
+	logo: "", // Add the URL or path to your logo, e.g., "logo.png"
+	htmlTitle: "Simple LLM - WebUI",
+	defaultLanguage: "en",
+	defaultApiMode: "ollama",
+	defaultOllamaEndpoint: "http://localhost:11434",
+	defaultOllamaModel: "gemma3:latest",
+	defaultOpenAIEndpoint: "http://localhost:8000/v1",
+	defaultSystemPrompt: "You are an IT expert. Answer in English",
+	defaultChatMemory: 12,
+	defaultShowStats: true,
+	debug: false
+};
