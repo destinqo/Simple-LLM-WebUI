@@ -1,3 +1,25 @@
+/**
+ * app.js - Main logic and UI controller for the LLM WebUI.
+ * 
+ * Provides a responsive, localized chat interface for both Ollama and OpenAI-compatible
+ * backends. Handles streaming responses, conversational history, file attachments, 
+ * session management, and settings persistence.
+ * 
+ * TABLE OF CONTENTS:
+ * 1. CONFIGURATION & DOM (Lines 15+)
+ * 2. SECURITY & UTILS (Lines 130+)
+ * 3. STATE MANAGEMENT (Lines 150+)
+ * 4. THEME & LANGUAGE (Lines 250+)
+ * 5. BACKEND API & MODELS (Lines 340+)
+ * 6. CHAT HISTORY (Lines 590+)
+ * 7. SESSION UI (Lines 740+)
+ * 8. FILE ATTACHMENTS (Lines 830+)
+ * 9. MESSAGE BUBBLES (Lines 910+)
+ * 10. CHAT ENGINE & STREAMING (Lines 1090+)
+ * 11. SETTINGS & BRANDING (Lines 1400+)
+ * 12. INITIALIZATION (Lines 1700+)
+ */
+
 "use strict";
 // Enforce strict mode to catch silent errors (undeclared variables, etc.)
 
@@ -54,9 +76,13 @@ if (typeof APP_CONFIG === 'undefined') {
 	throw new Error("config.js is missing - execution paused.");
 }
 
-// === DOM ===
-// Central registry of all DOM elements used across the app.
-// Queried once at startup to avoid repeated getElementById calls.
+// === 1. DOM Registry ===
+/**
+ * Central registry of all DOM elements used across the app.
+ * By querying once at startup and storing references here, we avoid repeated 
+ * document.getElementById calls, which slightly improves performance and 
+ * keeps element IDs in one searchable location.
+ */
 const dom = {
 	chat: document.getElementById('chat-container'),
 	form: document.getElementById('chat-form'),
@@ -109,12 +135,17 @@ const dom = {
 	mobileAppName: document.getElementById('mobile-app-name-display')
 };
 
-// === Security: force all sanitized links to open in new tab ===
-// DOMPurify sanitizes all markdown-rendered HTML before it is inserted into the DOM.
-// This hook runs after each element is sanitized and ensures every <a> tag:
-//   - Opens in a new browser tab (target="_blank")
-//   - Prevents the new page from accessing window.opener (rel="noopener noreferrer")
-// This mitigates tab-napping attacks from AI-generated links.
+// === 2. SECURITY & HOOKS ===
+/**
+ * Security Hook: Force all sanitized links to open in a new tab.
+ * 
+ * DOMPurify is used to clean HTML generated from markdown (bot messages).
+ * This hook runs after each element attribute is sanitized, ensuring:
+ *  - target="_blank": Opens links in new browser tabs.
+ *  - rel="noopener noreferrer": Protects against tab-napping and keeps the referrer private.
+ * 
+ * This prevents untrusted AI-generated content from manipulating the parent page.
+ */
 DOMPurify.addHook('afterSanitizeAttributes', function (node) {
 	if (node.tagName === 'A' && node.getAttribute('href')) {
 		node.setAttribute('target', '_blank');
@@ -122,18 +153,19 @@ DOMPurify.addHook('afterSanitizeAttributes', function (node) {
 	}
 });
 
-// === State ===
+// === 3. STATE MANAGEMENT ===
 
-// AbortController instance used to cancel an in-flight fetch stream.
-// Non-null only while a response is being streamed; checked on form submit
-// so the send button doubles as a stop button.
+/** @type {AbortController|null} - Current fetch stream controller; used to cancel generation. */
 let abortController = null;
 
-// ID of the currently active chat session (matches a chat.id in chatHistory).
+/** @type {string|number|null} - The ID (timestamp) of the active chat session. */
 let currentChatId = null;
 
-// In-memory array of all chat sessions: [{ id, title, messages: [{role, content, img, model}] }]
-// Persisted to localStorage under 'app_chats' and loaded eagerly at startup.
+/** 
+ * In-memory array of chat sessions.
+ * Structure: [{ id, title, messages: [{role, content, img, model}] }]
+ * Persisted to localStorage under 'app_chats'.
+ */
 let chatHistory = [];
 try {
 	const parsed = JSON.parse(localStorage.getItem('app_chats') || '[]');
@@ -143,16 +175,18 @@ try {
 	chatHistory = [];
 }
 
-// Base64-encoded image data (without the data-URI prefix) for the currently
-// attached image. Cleared after each message is sent.
+/** @type {string|null} - Base64 encoded data for currently attached image (without MIME prefix). */
 let base64Image = null;
 
-// Full text of an attached non-image file, wrapped in an <attachment> tag
-// with a prompt-injection warning. Appended to the user prompt before sending.
+/** @type {string} - XML-wrapped content of currently attached text file. */
 let textFileContent = "";
 
-
-// Formats a raw token-count number into a compact string: 4096 → "4.1k", 512 → "512".
+/**
+ * Formats a raw token-count number into a compact string.
+ * @example 4096 => "4.1k", 512 => "512"
+ * @param {number} ctx - The numeric token count.
+ * @returns {string} The compact representation.
+ */
 const ctxFmt = ctx => ctx >= 1000 ? (ctx / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(ctx);
 
 // Human-readable context-window size for the active model (e.g. "8k").
@@ -163,8 +197,8 @@ let ctxLimit = null; // Numeric context limit for percentage calculation
 // State for conversational history (sliding window)
 let currentMemory = parseInt(localStorage.getItem('app_chat_memory')) || APP_CONFIG.defaultChatMemory || 12;
 // State for showing stats under bot messages
-let currentShowStats = localStorage.getItem('app_show_stats') !== null 
-	? localStorage.getItem('app_show_stats') === 'true' 
+let currentShowStats = localStorage.getItem('app_show_stats') !== null
+	? localStorage.getItem('app_show_stats') === 'true'
 	: (APP_CONFIG.defaultShowStats ?? true);
 
 // Detect the browser's preferred language code (e.g. "en", "sk").
@@ -176,11 +210,13 @@ let currentLang = localStorage.getItem('app_lang') || (APP_TRANSLATIONS[browserL
 // Active CSS theme class applied to <body> (e.g. "theme-auto", "theme-dark").
 let currentTheme = localStorage.getItem('app_theme') || 'theme-auto';
 
-// === Helpers ===
+// === 2. SECURITY & UTILS ===
 
 /**
- * Returns the normalized base URL for the current endpoint (no trailing slash).
- * If the URL starts with localhost or 127.0.0.1, it's treated as a secure local context.
+ * Normalizes the current user-provided endpoint URL.
+ * Strips trailing slashes and ensures a protocol (http/https) is present.
+ * Defaults to 'http' for local/private network addresses if protocol is missing.
+ * @returns {string} The normalized base URL.
  */
 function getEndpoint() {
 	let url = dom.endpoint.value.trim().replace(/\/$/, '');
@@ -191,20 +227,30 @@ function getEndpoint() {
 	return url;
 }
 
-/** Returns true when Ollama native mode is active. */
+/** 
+ * Detects if the UI is currently configured to use Ollama's native API.
+ * @returns {boolean} True if 'ollama' mode is selected.
+ */
 function isOllamaMode() {
 	return dom.apiMode.value === 'ollama';
 }
 
-/** Returns Authorization headers for OpenAI mode, empty object for Ollama. */
+/** 
+ * Returns HTTP authentication headers for the backend.
+ * OpenAI/vLLM backends usually require a Bearer token; Ollama typically does not.
+ * @returns {Object} Headers object, e.g., { 'Authorization': '...' }
+ */
 function getAuthHeaders() {
 	if (isOllamaMode()) return {};
 	return { 'Authorization': `Bearer ${dom.apiKey.value || 'EMPTY'}` };
 }
 
 /**
- * Normalizes an OpenAI-compatible base URL into a full chat/completions URL.
- * Handles endpoints with or without a trailing /v1 path segment.
+ * Builds a full API URL for OpenAI-compatible endpoints.
+ * Handles cases where the base URL may or may not include the '/v1' path segment.
+ * @param {string} base - The base provider URL.
+ * @param {string} path - The specific endpoint path, e.g., 'chat/completions'.
+ * @returns {string} The concatenated absolute URL.
  */
 function openaiUrl(base, path) {
 	// If base already ends with /v1, don't add it again
@@ -212,19 +258,20 @@ function openaiUrl(base, path) {
 }
 
 /**
- * Prints debug messages to the console only when APP_CONFIG.debug is enabled.
- * Used for tracking network requests and streaming performance.
+ * Logs data to the browser console if debug mode is enabled in config.js.
+ * Useful for inspecting network payloads and timing without cluttering production.
+ * @param {...any} args - Values to log.
  */
 function debugLog(...args) {
 	if (APP_CONFIG.debug) console.log("%c🔍 [DEBUG]", "color: #3b82f6; font-weight: bold;", ...args);
 }
 
-// === Theme / Language ===
+// === 4. THEME & LANGUAGE ===
 
 /**
- * Applies a CSS theme by setting the class on <body>, persisting it to
- * localStorage, and syncing the theme selector in the settings form.
- * @param {string} theme - CSS class name, e.g. "theme-dark", "theme-auto".
+ * Applies a UI theme globally and persists it.
+ * Updates the <body> class and synchronizes the theme buttons.
+ * @param {string} theme - The theme identifier (e.g., 'theme-dark', 'theme-auto').
  */
 function applyTheme(theme) {
 	currentTheme = theme;
@@ -233,7 +280,10 @@ function applyTheme(theme) {
 	syncThemeButtons(theme);
 }
 
-/** Toggles active classes on theme buttons to match the current selection. */
+/** 
+ * Synchronizes the visual 'active' state of theme-selection buttons. 
+ * @param {string} theme - The currently selected theme identifier.
+ */
 function syncThemeButtons(theme) {
 	if (dom.theme) {
 		const btns = dom.theme.querySelectorAll('.theme-btn');
@@ -298,23 +348,19 @@ function setLanguage(lang) {
 	if (chat && chat.messages.length === 0) renderWelcome();
 }
 
-// === Model / API ===
+// === 5. BACKEND API & MODELS ===
 
 /**
- * Polls the backend server to update the status indicator dot and VRAM display.
- *
- * Ollama mode: hits /api/ps which returns currently loaded models with memory
- * usage.  Maps the result to one of four dot states:
- *   dot-online  (selected model is loaded)
- *   dot-other   (a different model is loaded)
- *   dot-waiting (no model loaded yet)
- *   dot-offline (server unreachable)
- *
- * OpenAI/vLLM mode: hits /v1/models as a liveness probe.  On success the dot
- * goes green and the model list is refreshed if stale or the server just
- * came back online.  VRAM display is cleared (not available via OpenAI API).
- *
- * Called on a 5-second interval and also triggered on first stream chunk.
+ * Periodically polls the configured backend server to update connectivity and VRAM status.
+ * 
+ * Logic:
+ *  - Ollama Mode: Hits /api/ps to see which models are currently resident in GPU/System RAM.
+ *    Updates the status dot: green (selected model loaded), yellow (wrong model loaded), 
+ *    orange (waiting), red (offline).
+ *  - OpenAI/vLLM Mode: Hits /v1/models as a heartbeat probe. 
+ *    Updates status dot: green (alive), red (offline).
+ * 
+ * Side-effect: If the server was offline and comes back, it automatically triggers fetchModels().
  */
 async function updateModelStats() {
 	const endpoint = getEndpoint();
@@ -386,10 +432,13 @@ async function updateModelStats() {
 }
 
 /**
- * Sends a fire-and-forget /api/generate request with keep_alive: "10m" to
- * pre-warm the selected Ollama model into GPU memory.  Then polls
- * updateModelStats() up to 10 times (every 2 s) until the dot goes green.
- * Only applicable in Ollama mode; no-ops silently for OpenAI/vLLM.
+ * Instructs the Ollama backend to load a specific model into VRAM.
+ * 
+ * Sets a `keep_alive` duration of 10 minutes to prevent the model from being evicted 
+ * immediately after first use. Polls updateModelStats() every 2 seconds (up to 10 attempts) 
+ * to provide a visual feedback loop during the loading process.
+ * 
+ * @returns {Promise<void>}
  */
 async function preloadModel() {
 	if (!dom.model.value || !isOllamaMode()) return;
@@ -409,24 +458,22 @@ async function preloadModel() {
 let isFetchingModels = false;
 
 /**
- * Fetches the list of available models from the configured endpoint and
- * populates the model <select>.  Also retrieves and caches the context-window
- * length (ctxLen) for the selected model.
- *
- * Ollama: GET /api/tags  — returns { models: [{name, size, details}] }
- *         Then POST /api/show for the selected model to get model_info with
- *         the context_length key (family-prefixed, e.g. "llama.context_length").
- *
- * OpenAI/vLLM: GET /v1/models — returns { data: [{id, max_model_len}] }
- *              Context length is plucked from data[0].max_model_len.
- *
- * Persists the selected model name to localStorage as 'app_model'.
- * Triggers updateModelStats() after the list is built.
+ * Synchronizes the UI model list with the backend server's available models.
+ * 
+ * Workflow:
+ *  1. Identifies the backend type (Ollama vs OpenAI/vLLM).
+ *  2. Fetches names, sizes, and architectural details (e.g., Vision capabilities).
+ *  3. In Ollama mode, performs a secondary parallel fetch (/api/show) per model 
+ *      to retrieve context limits and architecture metadata.
+ *  4. Populates the DOM <select> and restores the user's last selected model.
+ * 
+ * @returns {Promise<void>}
  */
 async function fetchModels() {
 	if (isFetchingModels) return;
 	isFetchingModels = true;
-	dom.status.className = 'dot-offline';
+	dom.status.className = 'dot-loading';
+	dom.status.title = "Fetching model list...";
 	dom.modelDisplay.innerText = '---';
 	const endpoint = getEndpoint();
 	const ollama = isOllamaMode();
@@ -456,7 +503,7 @@ async function fetchModels() {
 						const info = showD.model_info || {};
 						const ctxKey = Object.keys(info).find(k => k.endsWith('.context_length'));
 						if (ctxKey) m.context_length = info[ctxKey];
-						
+
 						// Vision detection: check for vision architecture or projector
 						const visionKeys = Object.keys(info).filter(k => k.includes('vision') || k.includes('projector'));
 						if (visionKeys.length > 0 || (showD.projector)) {
@@ -536,15 +583,16 @@ async function fetchModels() {
 	}
 }
 
-// === History ===
+// === 6. CHAT HISTORY ===
 
 /**
- * Re-renders the sidebar chat history list from the in-memory chatHistory array.
- * Each entry gets a clickable title and two icon buttons: edit (pencil) and
- * delete (trash).  The currently active chat is highlighted with class "active".
- *
- * Inline editing: clicking the pencil replaces the title span with a text
- * <input>; saving on blur/Enter persists the new title via saveHistory().
+ * Re-renders the chat history list in the sidebar from the local chatHistory array.
+ * 
+ * Features:
+ *  - Highlighting: Adds 'active' class to the currently viewed chat.
+ *  - Inline Editing: Click the pencil to swap the title span for an <input>;
+ *    saving happens on 'Enter' or blur.
+ *  - Deletion: Confirm-guarded removal from both memory and localStorage.
  */
 function renderHistory() {
 	const t = APP_TRANSLATIONS[currentLang];
@@ -604,14 +652,9 @@ function renderHistory() {
 }
 
 /**
- * Exports all chats to a plain-text .txt file and triggers a browser download.
- * Format:
- *   BACKUP - <timestamp>
- *   === <chat title> ===
- *   [ROLE (Model: name)]
- *   <message content>
- *
- * Uses a temporary object URL that is revoked 5 s after the click to free memory.
+ * Generates a text blob containing all saved chat history and initiates a browser download.
+ * Each chat is separated by headers and each message is labeled by role and model.
+ * A temporary ObjectURL is used and revoked after 5 seconds to manage memory.
  */
 function exportAllChats() {
 	let output = `BACKUP - ${new Date().toLocaleString()}\n\n`;
@@ -672,10 +715,8 @@ function startNewChat() {
 }
 
 /**
- * Renders the welcome/empty-state screen inside the chat container.
- * Shows a localized heading, subheading, and four suggestion chips.  Each
- * chip calls useSuggestion() when clicked to pre-fill the input with an
- * animated typing effect.
+ * Renders the initial landing page UI when no messages exist in the current chat.
+ * Displays interactive "suggestion chips" that provide examples of how to use the AI.
  */
 function renderWelcome() {
 	const t = APP_TRANSLATIONS[currentLang];
@@ -722,11 +763,12 @@ function useSuggestion(suggestion) {
 };
 
 /**
- * Persists the in-memory chatHistory array to localStorage as JSON.
- * Storage-quota guard: if a QuotaExceededError is thrown and there is more
- * than one saved chat, it evicts the oldest chat (last element, since history
- * is stored newest-first) and retries recursively.  If quota is still
- * exceeded with only one chat remaining, an alert is shown to the user.
+ * Serializes the current chatHistory array to localStorage.
+ * 
+ * Storage Guard:
+ * If the browser's localStorage quota is exceeded (typically 5-10MB), this function
+ * will perform "Tail Eviction": it pops the oldest chat from the end of the history
+ * array and retries the save until it succeeds or only one chat remains.
  */
 function saveHistory() {
 	try {
@@ -819,7 +861,7 @@ dom.cancelImg.onclick = () => {
 	dom.imgRender.classList.remove('hidden');
 };
 
-// === Message UI ===
+// === 7. SESSION UI ===
 
 /**
  * Creates and appends a single message bubble to the chat container.
@@ -838,6 +880,22 @@ dom.cancelImg.onclick = () => {
  * model name.  User messages get a retry button that re-fills the input.
  * Bot messages get a copy button that briefly shows a check-mark on success.
  * Code blocks are syntax-highlighted via highlight.js after parsing.
+ */
+/**
+ * Appends a message bubble directly to the Chat UI.
+ * 
+ * Features:
+ *  - Sanitization: Bot messages pass through DOMPurify + Marked.js for safe Markdown rendering.
+ *  - Highlighting: Code blocks are auto-detected and styled via Highlight.js.
+ *  - Interactivity: User bubbles include a 'Retry' button; Bot bubbles include a 'Copy' button.
+ *  - Branding: Bot headers display a specialized SVG icon based on the model's family (Llama, GPT, etc).
+ * 
+ * @param {string} role       - Either 'user' or 'bot'.
+ * @param {string} text       - The message content (Markdown supported for bots).
+ * @param {string|null} img   - Optional base64-encoded image to display.
+ * @param {string|null} modelName - The model responsible for the response.
+ * @param {Object|null} stats - Performance stats (TPS, duration, token count).
+ * @returns {HTMLElement}      - A reference to the message text container (for streaming updates).
  */
 function addMsgUI(role, text, img, modelName, stats) {
 	const d = document.createElement('div');
@@ -900,6 +958,13 @@ function addMsgUI(role, text, img, modelName, stats) {
 			else if (name.includes('mistral') || name.includes('mixtral')) family = 'mistral';
 			else if (name.includes('phi')) family = 'phi';
 			else if (name.includes('qwen')) family = 'qwen';
+			else if (name.includes('gpt')) family = 'gpt';
+			else if (name.includes('gemma') || name.includes('gemini')) family = 'google';
+			else if (name.includes('deepseek')) family = 'deepseek';
+			else if (name.includes('command') || name.includes('cohere')) family = 'cohere';
+			else if (name.includes('grok')) family = 'grok';
+			else if (name.includes('claude')) family = 'claude';
+			else if (name.includes('openeuro') || name.includes('eurollm')) family = 'openeuro';
 			else {
 				// Fallback to current selection if it matches, otherwise use generic
 				const curFamily = (dom.model.selectedOptions[0]?.dataset?.family || '').toLowerCase();
@@ -916,6 +981,20 @@ function addMsgUI(role, text, img, modelName, stats) {
 			iconHtml = `<svg class="icon-lg fill-primary" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="8" height="8" rx="1"></rect><rect x="13" y="3" width="8" height="8" rx="1"></rect><rect x="3" y="13" width="8" height="8" rx="1"></rect><rect x="13" y="13" width="8" height="8" rx="1"></rect></svg>`;
 		else if (family.includes('qwen'))
 			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l9 4.5v11L12 22l-9-4.5v-11L12 2z"></path><path d="M12 12l9-4.5M12 12l-9-4.5M12 12V22"></path></svg>`;
+		else if (family.includes('gpt'))
+			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v8M8 12h8M9.17 9.17l5.66 5.66M9.17 14.83l5.66-5.66"></path></svg>`;
+		else if (family.includes('google'))
+			iconHtml = `<svg class="icon-lg fill-primary" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L13.5 10.5L22 12L13.5 13.5L12 22L10.5 13.5L2 12L10.5 10.5L12 2Z"></path></svg>`;
+		else if (family.includes('deepseek'))
+			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 18c-3.3 0-6-2.7-6-6s2.7-6 6-6"></path><path d="M12 22c5.5 0 10-4.5 10-10S17.5 2 12 2 2 6.5 2 12s4.5 10 10 10z"></path></svg>`;
+		else if (family.includes('cohere'))
+			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="5" cy="19" r="2"></circle><path d="M12 9l5-2M12 15l-5 2"></path></svg>`;
+		else if (family.includes('grok'))
+			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 18"></path></svg>`;
+		else if (family.includes('claude'))
+			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"></path><path d="M12 18a6 6 0 1 1 6-6"></path><path d="M12 14a2 2 0 1 0 2-2"></path></svg>`;
+		else if (family.includes('openeuro'))
+			iconHtml = `<svg class="icon-lg fill-primary" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M0 0V18H6V6H18V0H0Z" opacity="0.65"></path><path d="M24 24V6H18V18H6V24H24Z"></path><path d="M7 8H9.5L12 12.5L14.5 8H17V17H15V10.5L12 15L9 10.5V17H7V8Z"></path></svg>`;
 
 		botAvatar.innerHTML = iconHtml;
 		botHeader.appendChild(botAvatar);
@@ -968,19 +1047,24 @@ dom.input.addEventListener('keydown', function (e) {
 	}
 });
 
-// === Chat Submission & Streaming ===
+// === 10. CHAT ENGINE & STREAMING ===
 
 const SEND_ICON = `<svg class="icon-md stroke-2-5 stroke-white" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
 const STOP_ICON = `<svg class="icon-md stroke-1 stroke-white fill-white" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"></rect></svg>`;
 
 /**
- * Builds the API request payload with conversational memory.
+ * Constructs the request payload for the Backend API.
  * 
- * Uses a "sliding window" to send only the last currentMemory entries,
- * ensuring the prompt doesn't exceed model limits while maintaining context.
+ * Conversational Memory Logic:
+ *  - Implements a "sliding window" context by slicing the chat history 
+ *    to only the last `currentMemory` messages.
+ *  - Injects system-level instructions and file attachments into the prompt.
+ *  - Handles both Ollama (flat images array) and OpenAI (multi-part content) formats.
  * 
- * Both Ollama (/api/chat) and OpenAI (/v1/chat/completions) now use a
- * similar message-based array format.
+ * @param {boolean} isOllama - Whether to use Ollama-specific payload format.
+ * @param {string} prompt    - The user's current textual prompt.
+ * @param {Object} chat      - The full chat session object containing message history.
+ * @returns {Object} The complete JSON payload for the POST request.
  */
 function buildPayload(isOllama, prompt, chat) {
 	const langInstruction = `\n(Respond in ${APP_TRANSLATIONS[currentLang]?.langName || 'English'})`;
@@ -992,7 +1076,7 @@ function buildPayload(isOllama, prompt, chat) {
 	const messages = history.map((m, idx) => {
 		const isLast = idx === history.length - 1;
 		const role = m.role === 'bot' ? 'assistant' : 'user';
-		
+
 		// For the very last message in the request (the current prompt),
 		// we inject the extra instructions and file content.
 		let textContent = m.content;
@@ -1051,6 +1135,23 @@ function buildPayload(isOllama, prompt, chat) {
  *   Ollama: newline-delimited JSON objects  { response, done, eval_count, … }
  *   OpenAI: SSE lines                       data: { choices[0].delta.content }
  */
+/**
+ * Core Request Orchestrator: Handles message submission and real-time streaming updates.
+ * 
+ * Lifecycle:
+ *  1. State Check: Aborts any existing stream if the button is clicked again (Stop feature).
+ *  2. Data Prep: Consolidates the prompt, attachments, and context window.
+ *  3. Rendering: Instantly adds the User bubble and a placeholder Bot bubble with a shimmer effect.
+ *  4. Network: Initiates a POST request to the backend with the AbortController signal attached.
+ *  5. Stream Loop: 
+ *     - Reads the response body as a ReadableStream.
+ *     - Splits incoming chunks into distinct JSON objects (Ollama) or SSE data lines (OpenAI).
+ *     - Updates the bot's markdown text using a debounced renderer (150ms) for visual smoothness.
+ *     - Calculates real-time TPS (Tokens Per Second) and elapsed time.
+ *  6. Completion: Persists the full response to history, saves to localStorage, and resets the UI state.
+ *  7. Error Handling: Catches network timeouts, 404s (model stale), and server crashes, 
+ *     rendering localized error messages within the chat thread.
+ */
 dom.form.onsubmit = async (e) => {
 	e.preventDefault();
 
@@ -1086,6 +1187,8 @@ dom.form.onsubmit = async (e) => {
 	let firstTokenTime = null;
 
 	dom.sendBtn.innerHTML = STOP_ICON;
+	dom.status.className = 'dot-loading';
+	dom.status.title = "Thinking...";
 	dom.sendBtn.classList.add('generating');
 	abortController = new AbortController();
 
@@ -1226,7 +1329,7 @@ dom.form.onsubmit = async (e) => {
 		abortController = null;
 		dom.sendBtn.innerHTML = SEND_ICON;
 		dom.sendBtn.classList.remove('generating');
-		
+
 		let stats = null;
 		if (currentShowStats && fullRes) {
 			stats = {
@@ -1251,7 +1354,7 @@ dom.form.onsubmit = async (e) => {
 	}
 };
 
-// === Settings ===
+// === 11. SETTINGS & BRANDING ===
 
 // Snapshot of the language at the moment the settings modal opens, used to
 // revert a live-preview language change if the user clicks Cancel.
@@ -1366,14 +1469,18 @@ dom.model.onchange = () => {
 };
 
 /**
- * Saves all settings form values to localStorage, applies theme/language
- * immediately, and re-initialises the model connection.
- * Warns (via alert) if a non-local endpoint URL is configured, since sending
- * chat data to an external server may be unintentional.
+ * Saves all settings from the modal form into localStorage and re-initializes the app.
+ * 
+ * Flow:
+ *  1. Persists primitives (URL, API mode, session memory depth, etc).
+ *  2. Triggers a full page reload if the URL changed (to refresh Dynamic CSP headers).
+ *  3. Updates UI labels for the active model and its context limits.
+ *  4. Initiates a fresh model fetch and pre-warming cycle.
  */
 document.getElementById('save-settings-btn').onclick = () => {
 	const prevUrl = localStorage.getItem('app_url');
 	const url = dom.endpoint.value.trim();
+	// Alert the user if they're pointing messages at an internet address.
 	if (url && !url.includes('127.0.0.1') && !url.includes('localhost') &&
 		!url.match(/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/)) {
 		console.warn("External endpoint configured.");
@@ -1547,7 +1654,7 @@ function initThemeSwitcher() {
 	});
 }
 
-// === Init ===
+// === 12. INITIALIZATION ===
 // Bootstrap sequence that runs once on page load:
 //  1. Populate the language selector and apply the active language / theme.
 //  2. Initialise the sidebar toggle behaviour.

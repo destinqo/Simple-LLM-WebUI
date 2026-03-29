@@ -124,6 +124,8 @@
   --dot-online: var(--success);
   --dot-waiting: var(--p-yellow);
   --dot-offline: var(--danger);
+  --dot-other: oklch(0.60 0.16 280); /* Indigo for other models */
+  --dot-loading: oklch(0.65 0.20 250); /* Bright Blue for loading */
 
   /* --- 6. GLOBAL LAYOUT --- */
   --sidebar-width: 280px;
@@ -405,6 +407,18 @@ body {
 .dot-other {
   background: var(--dot-other);
   box-shadow: 0 0 5px var(--dot-other);
+}
+
+.dot-loading {
+  background: var(--dot-loading);
+  box-shadow: 0 0 8px var(--dot-loading);
+  animation: dot-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes dot-pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 .vram-offload {
