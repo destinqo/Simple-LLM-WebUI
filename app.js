@@ -1452,14 +1452,14 @@ async function checkAppVersion() {
 		const { version: localVersion } = await localRes.json();
 		if (dom.appVersion) dom.appVersion.innerText = "v" + localVersion;
 
-		const remoteRes = await fetch('https://raw.githubusercontent.com/destinqo/llm-webui-lite/main/version.json?_t=' + Date.now());
+		const remoteRes = await fetch('https://raw.githubusercontent.com/destinqo/Simple-LLM-WebUI/main/version.json?_t=' + Date.now());
 		if (!remoteRes.ok) return;
 		const { version: remoteVersion } = await remoteRes.json();
 
 		if (remoteVersion !== localVersion && remoteVersion.localeCompare(localVersion) > 0 && dom.appVersion) {
 			dom.appVersion.innerText = `v${localVersion} `;
 			const a = document.createElement('a');
-			a.href = "https://github.com/destinqo/llm-webui-lite";
+			a.href = "https://github.com/destinqo/Simple-LLM-WebUI";
 			a.target = "_blank";
 			a.rel = "noopener noreferrer";
 			a.className = 'version-update-link';
