@@ -29,22 +29,15 @@ if (typeof APP_CONFIG === 'undefined') {
 	const style = document.createElement('style');
 	style.textContent = `
 		#config-alert-overlay {
-			position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-			backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+			position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+			backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 			z-index: 10000; display: flex; align-items: center; justify-content: center;
 			color: #fff; font-family: system-ui, -apple-system, sans-serif;
 		}
 		.config-alert-card {
-			background: #1e1e2e; padding: 40px; border-radius: 24px;
-			box-shadow: 0 20px 50px rgba(0,0,0,0.5); max-width: 400px; text-align: center;
-			border: 1px solid rgba(255,255,255,0.1);
+			background: #111; padding: 32px; border-radius: 16px;
+			max-width: 360px; text-align: center; border: 1px solid rgba(255,255,255,0.1);
 		}
-		.config-loader {
-			display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(255,255,255,0.3);
-			border-bottom-color: #fff; border-radius: 50%;
-			animation: config-rotate 1s linear infinite; margin: 20px 0;
-		}
-		@keyframes config-rotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 	`;
 	document.head.appendChild(style);
 
@@ -52,16 +45,12 @@ if (typeof APP_CONFIG === 'undefined') {
 	overlay.id = 'config-alert-overlay';
 	overlay.innerHTML = `
 		<div class="config-alert-card">
-			<div style="font-size: 40px; margin-bottom: 20px;">⚠️</div>
-			<h2 style="margin: 0 0 10px 0;">config.js missing</h2>
-			<p style="opacity: 0.8; font-size: 15px; line-height: 1.5;">Please create <b>config.js</b> from <b>config.js.default</b> in the root directory.</p>
-			<div class="config-loader"></div>
-			<p style="font-size: 13px; opacity: 0.5;">Auto-detecting file...</p>
+			<h2 style="margin: 0 0 12px 0; font-size: 20px;">Configuration Required</h2>
+			<p style="opacity: 0.7; font-size: 14px; line-height: 1.6; margin: 0;">Please create <b>config.js</b> from <b>config.js.default</b> to continue.</p>
 		</div>
 	`;
 	document.body.appendChild(overlay);
 
-	// Polling for the script availability
 	const interval = setInterval(async () => {
 		try {
 			const res = await fetch('config.js', { cache: 'no-store' });
@@ -72,8 +61,7 @@ if (typeof APP_CONFIG === 'undefined') {
 		} catch (e) { }
 	}, 2000);
 
-	// Prevent the rest of app.js from firing ReferenceErrors on APP_CONFIG
-	throw new Error("config.js is missing - execution paused.");
+	throw new Error("config.js missing");
 }
 
 // === 1. DOM Registry ===
@@ -131,8 +119,7 @@ const dom = {
 	advancedDetails: document.querySelector('.advanced-settings'),
 	cancelImg: document.getElementById('cancel-img'),
 	sendBtn: document.getElementById('send-btn'),
-	mobileMenuBtn: document.getElementById('mobile-menu-btn'),
-	mobileAppName: document.getElementById('mobile-app-name-display')
+	mobileMenuBtn: document.getElementById('mobile-menu-btn')
 };
 
 // === 2. SECURITY & HOOKS ===
@@ -181,6 +168,10 @@ let base64Image = null;
 /** @type {string} - XML-wrapped content of currently attached text file. */
 let textFileContent = "";
 
+// The default logo used when no custom logo is provided in config.js.
+// Encoded as a data URI to remove the need for an external default.svg file.
+const DEFAULT_LOGO = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDQwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHBhdGggZD0iTTQwIDYwQzQwIDQ4Ljk1NDMgNDguOTU0MyA0MCA2MCA0MEgzNDBDMzUxLjA0NiA0MCAzNjAgNDguOTU0MyAzNjAgNjBWMjgwQzM2MCAyOTEuMDQ2IDM1MS4wNDYgMzAwIDM0MCAzMDBIMTA1TDc1IDM1MFZzMDBINjBDNDguOTU0MyAzMDAgNDAgMjkxLjA0NiA0MCAyODBWNjBaIiBzdHJva2U9IiMxQTU2QkUiIHN0cm9rZS13aWR0aD0iMTIiIGZpbGw9IndoaXRlIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTQwIDYwQzQwIDQ4Ljk1NDMgNDguOTU0MyA0MCA2MCA0MEgzNDBDMzUxLjA0NiA0MCAzNjAgNDguOTU0MyAzNjAgNjBWOTBINDBWNjBaIiBmaWxsPSIjMUE1NkJFIi8+CiAgPGNpcmNsZSBjeD0iNjUiIGN5PSI2NSIgcj0iNiIgZmlsbD0iI0ZGNUY1NyIvPgogIDxjaXJjbGUgY3g9Ijg1IiBjeT0iNjUiIHI9IjYiIGZpbGw9IiNGRkJEMkUiLz4KICA8Y2lyY2xlIGN4PSIxMDUiIGN5PSI2NSIgcj0iNiIgZmlsbD0iIzI4Qzg0MCIvPgogIDxyZWN0IHg9IjEzMCIgeT0iNTUiIHdpZHRoPSIxNjAiIGhlaWdodD0iMjAiIHJ4PSIxMCIgZmlsbD0id2hpdGUiIGZpbGwtb3BhY2l0eT0iMC45Ii8+CiAgPHBhdGggZD0iTTMxNSA2NUgzMzVNMzM1IDY1TDMyOCA1OE0zMzUgNjVMMzI4IDcyIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxnIHN0cm9rZT0iIzFBNTZCRSIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiPgogICAgPGxpbmUgeDE9IjE0MCIgeTE9IjEzMCIgeDI9IjIwMCIgeTI9IjEyMCIvPgogICAgPGxpbmUgeDE9IjE0MCIgeTE9IjEzMCIgeDI9IjE2MCIgeTI9IjE4MCIvPgogICAgPGxpbmUgeDE9IjIwMCIgeTE9IjEyMCIgeDI9IjI2MCIgeTI9IjE0MCIvPgogICAgPGxpbmUgeDE9IjIwMCIgeTE9IjEyMCIgeDI9IjIwMCIgeTI9IjE4MCIvPgogICAgPGxpbmUgeDE9IjE2MCIgeTE9IjE4MCIgeDI9IjIwMCIgeTI9IjE4MCIvPgogICAgPGxpbmUgeDE9IjE2MCIgeTE9IjE4MCIgeDI9IjE4MCIgeTI9IjI0MCIvPgogICAgPGxpbmUgeDE9IjIwMCIgeTE9IjE4MCIgeDI9IjI2MCIgeTI9IjE0MCIvPgogICAgPGxpbmUgeDE9IjIwMCIgeTE9IjE4MCIgeDI9IjIzMCIgeTI9IjIzMCIvPgogICAgPGxpbmUgeDE9IjI2MCIgeTE9IjE0MCIgeDI9IjI5MCIgeTI9IjE5MCIvPgogICAgPGxpbmUgeDE9IjIzMCIgeTE9IjIzMCIgeDI9IjI5MCIgeTI9IjE5MCIvPgogICAgPGxpbmUgeDE9IjE4MCIgeTE9IjI0MCIgeDI9IjIzMCIgeTI9IjIzMCIvPgogIDwvZz4KICA8ZyBmaWxsPSIjNjBBNUZBIiBzdHJva2U9IiMxQTU2QkUiIHN0cm9rZS13aWR0aD0iMyI+CiAgICA8Y2lyY2xlIGN4PSIxNDAiIGN5PSIxMzAiIHI9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIyMDAiIGN5PSIxMjAiIHI9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIyNjAiIGN5PSIxNDAiIHI9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIxNjAiIGN5PSIxODAiIHI9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIyMDAiIGN5PSIxODAiIHI9IjE0IiBmaWxsPSIjMUE1NkJFIiBzdHJva2Utd2lkdGg9IjAiLz4gPGNpcmNsZSBjeD0iMjAwIiBjeT0iMTgwIiByPSI4IiBmaWxsPSIjRkZGRkZGIi8+CiAgICA8Y2lyY2xlIGN4PSIyOTAiIGN5PSIxOTAiIHI9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIxODAiIGN5PSIyNDAiIHI9IjEwIi8+CiAgICA8Y2lyY2xlIGN4PSIyMzAiIGN5PSIyMzAiIHI9IjEwIi8+CiAgPC9nPgo8L3N2Zz4=`;
+
 /**
  * Formats a raw token-count number into a compact string.
  * @example 4096 => "4.1k", 512 => "512"
@@ -190,7 +181,7 @@ let textFileContent = "";
 const ctxFmt = ctx => ctx >= 1000 ? (ctx / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(ctx);
 
 // Human-readable context-window size for the active model (e.g. "8k").
-// Displayed in the token counter.  Reset to null whenever the model changes.
+// Displayed in the token counter. Updated whenever the model changes.
 let ctxLen = null;
 let ctxLimit = null; // Numeric context limit for percentage calculation
 
@@ -1536,10 +1527,9 @@ if (dom.clearAllBtn) dom.clearAllBtn.onclick = () => {
 // be reused for different deployments simply by editing config.js.
 document.title = APP_CONFIG.htmlTitle;
 if (dom.sidebarAppName) dom.sidebarAppName.innerText = APP_CONFIG.appName;
-if (APP_CONFIG.logo) {
-	if (dom.sidebarLogo) dom.sidebarLogo.src = APP_CONFIG.logo;
-	if (dom.mobileLogo) dom.mobileLogo.src = APP_CONFIG.logo;
-}
+const logoSrc = APP_CONFIG.logo || DEFAULT_LOGO;
+if (dom.sidebarLogo) dom.sidebarLogo.src = logoSrc;
+if (dom.mobileLogo) dom.mobileLogo.src = logoSrc;
 if (dom.mobileAppName) dom.mobileAppName.innerText = APP_CONFIG.appName;
 
 // === Version Check ===

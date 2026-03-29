@@ -958,16 +958,6 @@ body.theme-dark .history-btn:hover {
   overflow: hidden;
 }
 
-#desktop-header {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  #desktop-header {
-    display: none;
-  }
-}
-
 #chat-container {
   flex-grow: 1;
   overflow-y: auto;
@@ -1132,17 +1122,7 @@ pre {
   overflow-x: auto;
   margin: 10px 0;
   border: 1px solid var(--border);
-  background: var(--l-code-bg);
-}
-
-body.theme-dark pre {
-  background: var(--d-code-bg);
-}
-
-@media (prefers-color-scheme: dark) {
-  body.theme-auto pre {
-    background: var(--d-code-bg);
-  }
+  background: var(--code-bg);
 }
 
 .welcome-container {
