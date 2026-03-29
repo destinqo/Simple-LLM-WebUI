@@ -7,37 +7,52 @@
 :root {
   /* --- 1. OKLCH COMPONENTS (Perceptually Uniform - 2026 Standard) --- */
   /* Blue Brand (#164082) */
-  --h-blue: 251.6; --c-blue: 0.125; --l-blue: 33.4%;
+  --h-blue: 251.6;
+  --c-blue: 0.125;
+  --l-blue: 33.4%;
   /* Green Success */
-  --h-green: 155;  --c-green: 0.13;  --l-green: 48%;
+  --h-green: 155;
+  --c-green: 0.13;
+  --l-green: 48%;
   /* Yellow Warning */
-  --h-yellow: 92;   --c-yellow: 0.16; --l-yellow: 86%;
+  --h-yellow: 92;
+  --c-yellow: 0.16;
+  --l-yellow: 86%;
   /* Red Danger */
-  --h-red: 29;      --c-red: 0.18;    --l-red: 58%;
+  --h-red: 29;
+  --c-red: 0.18;
+  --l-red: 58%;
   /* Fine Gray scale */
-  --h-gray: 250;    --c-gray: 0.008;
+  --h-gray: 250;
+  --c-gray: 0.008;
 
   /* --- 2. CORE PRIMITIVES (OKLCH Definitions) --- */
   --p-white: #ffffff;
   --white: var(--p-white);
   --p-black: #000000;
 
-  --p-blue:   oklch(var(--l-blue) var(--c-blue) var(--h-blue));
-  --p-green:  oklch(var(--l-green) var(--c-green) var(--h-green));
+  --p-blue: oklch(var(--l-blue) var(--c-blue) var(--h-blue));
+  --p-green: oklch(var(--l-green) var(--c-green) var(--h-green));
   --p-yellow: oklch(var(--l-yellow) var(--c-yellow) var(--h-yellow));
-  --p-red:    oklch(var(--l-red) var(--c-red) var(--h-red));
+  --p-red: oklch(var(--l-red) var(--c-red) var(--h-red));
 
   /* Translucent Layers */
   --p-blue-surface: oklch(var(--l-blue) var(--c-blue) var(--h-blue) / 0.08);
-  --p-red-surface:  oklch(var(--l-red) var(--c-red) var(--h-red) / 0.08);
+  --p-red-surface: oklch(var(--l-red) var(--c-red) var(--h-red) / 0.08);
 
   /* Neutrals mapping (OKLCH Grays) */
-  --p-gray-50:  oklch(0.98 var(--c-gray) var(--h-gray)); /* Lightest BG */
-  --p-gray-100: oklch(0.92 var(--c-gray) var(--h-gray)); /* Light Border */
-  --p-gray-600: oklch(0.40 var(--c-gray) var(--h-gray)); /* Muted Text */
-  --p-gray-700: oklch(0.32 var(--c-gray) var(--h-gray)); /* Secondary Text */
-  --p-gray-900: oklch(0.18 var(--c-gray) var(--h-gray)); /* Primary Text/Dark Surface */
-  --p-gray-950: oklch(0.10 var(--c-gray) var(--h-gray)); /* Darkest BG */
+  --p-gray-50: oklch(0.98 var(--c-gray) var(--h-gray));
+  /* Lightest BG */
+  --p-gray-100: oklch(0.92 var(--c-gray) var(--h-gray));
+  /* Light Border */
+  --p-gray-600: oklch(0.40 var(--c-gray) var(--h-gray));
+  /* Muted Text */
+  --p-gray-700: oklch(0.32 var(--c-gray) var(--h-gray));
+  /* Secondary Text */
+  --p-gray-900: oklch(0.18 var(--c-gray) var(--h-gray));
+  /* Primary Text/Dark Surface */
+  --p-gray-950: oklch(0.10 var(--c-gray) var(--h-gray));
+  /* Darkest BG */
 
   /* --- 3. LIGHT PALETTE (OKLCH-mapped) --- */
   --l-bg: var(--p-white);
@@ -68,7 +83,8 @@
   --d-text-light: oklch(0.70 0.01 var(--h-gray));
   --d-text-muted: oklch(0.50 0.02 var(--h-gray));
   --d-border: var(--p-gray-600);
-  --d-primary: oklch(0.65 0.15 var(--h-blue)); /* Lifted for dark mode visibility */
+  --d-primary: oklch(0.65 0.15 var(--h-blue));
+  /* Lifted for dark mode visibility */
   --d-danger: oklch(0.65 0.18 var(--h-red));
   --d-success: oklch(0.65 0.15 var(--h-green));
   --d-hover-bg: oklch(100% 0 0 / 0.05);
@@ -245,12 +261,15 @@ body {
 
 /* Custom Minimalist Scrollbars - Completely Hidden */
 * {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE/Edge */
 }
 
 ::-webkit-scrollbar {
-  display: none; /* Chrome/Safari/Edge */
+  display: none;
+  /* Chrome/Safari/Edge */
   width: 0;
   height: 0;
 }
@@ -308,6 +327,8 @@ body {
   gap: 12px;
   overflow: hidden;
   transition: opacity 0.3s;
+  width: calc(var(--sidebar-width) - 64px);
+  white-space: nowrap;
 }
 
 .sidebar.collapsed .sidebar-branding {
@@ -418,13 +439,14 @@ body {
     background var(--trans-fast),
     padding var(--trans-slow),
     justify-content var(--trans-slow);
-  width: 100%;
+  width: calc(var(--sidebar-width) - 20px);
   display: flex;
   align-items: center;
   gap: var(--sidebar-item-gap);
   box-sizing: border-box;
   overflow: hidden;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 #new-chat-btn,
@@ -806,6 +828,10 @@ body.theme-dark .theme-btn.active {
   opacity: 0.4;
   margin-bottom: 8px;
   padding-left: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: calc(var(--sidebar-width) - 20px);
 }
 
 .history-item {
@@ -819,6 +845,9 @@ body.theme-dark .theme-btn.active {
   margin-bottom: 2px;
   transition: background var(--trans-fast);
   position: relative;
+  width: calc(var(--sidebar-width) - 20px);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .history-item:hover {
