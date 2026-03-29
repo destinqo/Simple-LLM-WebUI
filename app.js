@@ -400,11 +400,18 @@ async function updateModelStats() {
 			dom.status.className = 'dot-online';
 			const othersList = others.length ? ` | also loaded: ${others.map(m => m.name).join(', ')}` : '';
 			dom.status.title = `Ready - Selected model is loaded${othersList}`;
-			const vramGB = (active.size_vram / (1024 ** 3)).toFixed(1);
-			const totalGB = (active.size / (1024 ** 3)).toFixed(1);
-			dom.vramDisplay.innerHTML = (totalGB - vramGB > 0)
-				? `GPU/TOTAL: ${vramGB}/<span class="vram-offload">${totalGB} GB</span>`
-				: `GPU/TOTAL: ${vramGB}/${totalGB} GB`;
+			// vramGB and totalGB are computed from numeric server values — safe to display
+			const vramGB = parseFloat((active.size_vram / (1024 ** 3)).toFixed(1));
+			const totalGB = parseFloat((active.size / (1024 ** 3)).toFixed(1));
+			if (totalGB - vramGB > 0) {
+				const offload = document.createElement('span');
+				offload.className = 'vram-offload';
+				offload.textContent = `${totalGB} GB`;
+				dom.vramDisplay.textContent = `GPU/TOTAL: ${vramGB}/`;
+				dom.vramDisplay.appendChild(offload);
+			} else {
+				dom.vramDisplay.textContent = `GPU/TOTAL: ${vramGB}/${totalGB} GB`;
+			}
 		} else if (others.length) {
 			dom.status.className = 'dot-other';
 			dom.status.title = `Loaded instead: ${others.map(m => m.name).join(', ')}`;
@@ -568,7 +575,11 @@ async function fetchModels() {
 		updateModelStats();
 	} catch (e) {
 		console.warn("fetchModels error:", e);
-		dom.model.innerHTML = `<option value="">Error: ${e.message}</option>`;
+		dom.model.innerHTML = '';
+		const errOpt = document.createElement('option');
+		errOpt.value = '';
+		errOpt.textContent = `Error: ${e.message}`;
+		dom.model.appendChild(errOpt);
 	} finally {
 		isFetchingModels = false;
 	}
@@ -1011,14 +1022,7 @@ function addMsgUI(role, text, img, modelName, stats) {
 	d.appendChild(actions);
 
 	if (role === 'bot' && stats && currentShowStats) {
-		const statsDiv = document.createElement('div');
-		statsDiv.className = 'msg-stats';
-		statsDiv.innerHTML = `
-			<div class="msg-stats-item"><span>🚀</span> ${stats.tps}</div>
-			<div class="msg-stats-item"><span>⏱️</span> ${stats.duration}</div>
-			<div class="msg-stats-item"><span>Tokens:</span> ${stats.tokens}</div>
-		`;
-		d.appendChild(statsDiv);
+		d.appendChild(buildStatsDiv(stats));
 	}
 
 	dom.chat.appendChild(d);
@@ -1328,15 +1332,7 @@ dom.form.onsubmit = async (e) => {
 				duration: dom.durationDisplay.innerText,
 				tokens: dom.tokenDisplay.innerText
 			};
-			// Add stats to the current DOM element
-			const statsDiv = document.createElement('div');
-			statsDiv.className = 'msg-stats';
-			statsDiv.innerHTML = `
-				<div class="msg-stats-item"><span>🚀</span> ${stats.tps}</div>
-				<div class="msg-stats-item"><span>⏱️</span> ${stats.duration}</div>
-				<div class="msg-stats-item"><span>Tokens:</span> ${stats.tokens}</div>
-			`;
-			botSpan.parentNode.appendChild(statsDiv);
+			botSpan.parentNode.appendChild(buildStatsDiv(stats));
 		}
 
 		chat.messages.push({ role: 'bot', content: fullRes, model: modelName, stats });
@@ -1344,6 +1340,32 @@ dom.form.onsubmit = async (e) => {
 		renderHistory();
 	}
 };
+
+/**
+ * Constructs a stats display div from plain-text stat values.
+ * Uses textContent exclusively to avoid injecting server-derived values as HTML.
+ * @param {{tps: string, duration: string, tokens: string}} stats
+ * @returns {HTMLElement}
+ */
+function buildStatsDiv(stats) {
+	const div = document.createElement('div');
+	div.className = 'msg-stats';
+	const items = [
+		['🚀', stats.tps],
+		['⏱️', stats.duration],
+		['Tokens:', stats.tokens]
+	];
+	for (const [icon, val] of items) {
+		const item = document.createElement('div');
+		item.className = 'msg-stats-item';
+		const label = document.createElement('span');
+		label.textContent = icon;
+		item.appendChild(label);
+		item.append(' ' + val);
+		div.appendChild(item);
+	}
+	return div;
+}
 
 // === 11. SETTINGS & BRANDING ===
 
