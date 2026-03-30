@@ -390,19 +390,29 @@ async function updateModelStats() {
 			fetchModels();
 			return;
 		}
-		if (dom.modelDisplay.innerText === '---') {
-			dom.modelDisplay.innerText = dom.model.value;
-		}
 		const active = d.models.find(m => m.name === dom.model.value);
 		const others = d.models.filter(m => m.name !== dom.model.value);
 
+		if (dom.modelDisplay.innerText === '---' || dom.modelDisplay.innerText === dom.model.value || dom.modelDisplay.querySelector('.cloud-icon')) {
+			updateModelDisplay(!!abortController);
+		}
+
 		if (active) {
+			const isCloud = dom.model.value.toLowerCase().includes('cloud') || (/gpt|claude|gemini|o1|o3|command-r|grok/i.test(dom.model.value) && (active.size === 0 || !active.size));
 			dom.status.className = 'dot-online';
+			dom.modelDisplay.classList.toggle('status-cloud', isCloud);
 			const othersList = others.length ? ` | also loaded: ${others.map(m => m.name).join(', ')}` : '';
 			dom.status.title = `Ready - Selected model is loaded${othersList}`;
 			// vramGB and totalGB are computed from numeric server values — safe to display
 			const vramGB = parseFloat((active.size_vram / (1024 ** 3)).toFixed(1));
 			const totalGB = parseFloat((active.size / (1024 ** 3)).toFixed(1));
+
+			// Dynamic cloud detection refinement
+			if (vramGB === 0 && totalGB === 0 && !dom.modelDisplay.querySelector('.cloud-icon')) {
+				dom.modelDisplay.classList.add('status-cloud');
+				dom.modelDisplay.innerHTML += ' <span class="cloud-icon">🌩</span>';
+			}
+
 			if (totalGB - vramGB > 0) {
 				const offload = document.createElement('span');
 				offload.className = 'vram-offload';
@@ -427,6 +437,35 @@ async function updateModelStats() {
 		dom.vramDisplay.innerText = 'GPU/TOTAL: -/-';
 		ctxLen = null;
 	}
+}
+
+/**
+ * Updates the visual model name and icons in the status bar.
+ * Adds a lightning bolt (⚡) only when the model is actively responding.
+ * @param {boolean} isGenerating - True if the AI is currently streaming a response.
+ */
+function updateModelDisplay(isGenerating = false) {
+	if (!dom.model.value) {
+		dom.modelDisplay.innerText = '---';
+		return;
+	}
+
+	const selOpt = dom.model.selectedOptions[0];
+	if (!selOpt) return;
+
+	const selectedName = dom.model.value;
+	const dispSize = selOpt.dataset.size;
+	const isCloud = selectedName.toLowerCase().includes('cloud') || (/gpt|claude|gemini|o1|o3|command-r|grok/i.test(selectedName) && (!dispSize || dispSize === '---'));
+
+	dom.modelDisplay.classList.toggle('status-cloud', isCloud);
+
+	const icons = (isCloud ? ' <span class="cloud-icon">🌩</span>' : '')
+
+	const label = (isOllamaMode() && dispSize && dispSize !== '---')
+		? `${selectedName} (${dispSize} GB)`
+		: selectedName;
+
+	dom.modelDisplay.innerHTML = label + icons;
 }
 
 /**
@@ -540,13 +579,17 @@ async function fetchModels() {
 			if (vllmCtx || ollamaCtx) opt.dataset.ctx = vllmCtx || ollamaCtx;
 			if (isVision) opt.dataset.vision = "true";
 
+			const isCloud = name.toLowerCase().includes('cloud') || (/gpt|claude|gemini|o1|o3|command-r|grok/i.test(name) && (!sizeGB || sizeGB === '---'));
+			if (isCloud) opt.classList.add('cloud-model');
+			const cldStr = isCloud ? ' 🌩' : '';
+			const visStr = isVision ? ' 🖼️' : '';
+
 			let label = name;
 			if (ollama && sizeGB) {
 				const ctxStr = ollamaCtx ? `, ${ctxFmt(ollamaCtx)}` : '';
-				const visStr = isVision ? ' 🖼️' : '';
-				label = `${name} (${sizeGB} GB${ctxStr})${visStr}`;
-			} else if (!ollama && isVision) {
-				label = `${name} 🖼️`;
+				label = `${name} (${sizeGB} GB${ctxStr})${cldStr}${visStr}`;
+			} else {
+				label = `${name}${cldStr}${visStr}`;
 			}
 			opt.innerText = label;
 
@@ -566,10 +609,7 @@ async function fetchModels() {
 		ctxLimit = selOpt?.dataset?.ctx ? parseInt(selOpt.dataset.ctx) : null;
 		ctxLen = ctxLimit ? ctxFmt(ctxLimit) : null;
 
-		const dispSize = selOpt?.dataset?.size;
-		dom.modelDisplay.innerText = (ollama && dispSize && dispSize !== '---')
-			? `${selectedName} (${dispSize} GB)`
-			: selectedName;
+		updateModelDisplay();
 
 		dom.status.className = 'dot-online';
 		updateModelStats();
@@ -967,6 +1007,8 @@ function addMsgUI(role, text, img, modelName, stats) {
 			else if (name.includes('grok')) family = 'grok';
 			else if (name.includes('claude')) family = 'claude';
 			else if (name.includes('openeuro') || name.includes('eurollm')) family = 'openeuro';
+			else if (name.includes('lywai')) family = 'lywai';
+			else if (name.includes('glm')) family = 'glm';
 			else {
 				// Fallback to current selection if it matches, otherwise use generic
 				const curFamily = (dom.model.selectedOptions[0]?.dataset?.family || '').toLowerCase();
@@ -997,6 +1039,10 @@ function addMsgUI(role, text, img, modelName, stats) {
 			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"></path><path d="M12 18a6 6 0 1 1 6-6"></path><path d="M12 14a2 2 0 1 0 2-2"></path></svg>`;
 		else if (family.includes('openeuro'))
 			iconHtml = `<svg class="icon-lg fill-primary" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M0 0V18H6V6H18V0H0Z" opacity="0.65"></path><path d="M24 24V6H18V18H6V24H24Z"></path><path d="M7 8H9.5L12 12.5L14.5 8H17V17H15V10.5L12 15L9 10.5V17H7V8Z"></path></svg>`;
+		else if (family.includes('lywai'))
+			iconHtml = `<svg class="icon-lg stroke-2 stroke-primary" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 0 9"></path><path d="m13 13.5-3 3.5h5l-3 3.5"></path></svg>`;
+		else if (family.includes('glm'))
+			iconHtml = `<svg class="icon-lg fill-primary" viewBox="4 6 40 37" xmlns="http://www.w3.org/2000/svg"><path d="M40.4 16.2C37.9 16.5 35.7 19.4 32.3 19.4C30.6 19.4 28.2 18.3 27.4 15.8C26.3 12.8 26.3 12.1 25.3 12C24.7 11.9 23 11.9 21.3 12.3C18.7 12.9 16.4 14.2 15.6 14.9C8.8 20 7.4 29.6 12.7 35.5C15.5 38.8 19.7 39.8 23 39.6C29.7 39.2 32.5 34.7 32.6 31.6C32.8 27.9 30 25.2 26.8 26.5C26.1 26.8 25.5 27.4 25.3 28.4C25 29.5 25.4 31.2 27.6 31.3C27.7 31.3 27.8 31.2 27.8 31.1C27.8 31 27.8 30.9 27.6 30.8C27.5 30.8 26.6 30.3 26.9 29.2C27.1 28.3 28.5 28 29.2 28.8C30 29.6 30.3 31 29.5 32.6C28.7 34.3 25.8 36.4 21 35.4C19.3 35.1 16.3 33.5 16.1 29.9C15.9 27.3 17.1 25.5 18.2 24.6C19.4 23.5 21 22.7 22.5 22.2C22.5 21.3 22.8 20.4 23.6 19.5C24.3 18.5 25.2 18 26.2 18C26.9 18 27.5 18.2 27.9 18.8C28.2 19.4 28.1 20.1 27.8 20.6C27.7 21 27.4 21.2 27.2 21.5C29.2 21.5 30.9 21.9 32.3 21.7C36.2 21.2 38.3 19.4 39.3 18.4C39.6 18.1 39.9 17.8 40.2 17.5C40.6 17.2 40.9 16.9 41.2 16.7C41.5 16.3 41.1 16.1 40.4 16.2Z"/></svg>`;
 
 		botAvatar.innerHTML = iconHtml;
 		botHeader.appendChild(botAvatar);
@@ -1186,7 +1232,7 @@ dom.form.onsubmit = async (e) => {
 	dom.status.title = "Thinking...";
 	dom.sendBtn.classList.add('generating');
 	abortController = new AbortController();
-
+	updateModelDisplay(true);
 	try {
 		const apiUrl = ollama
 			? `${endpoint}/api/chat`
@@ -1323,6 +1369,7 @@ dom.form.onsubmit = async (e) => {
 		dom.cancelImg.click();
 		abortController = null;
 		dom.sendBtn.innerHTML = SEND_ICON;
+		updateModelDisplay(false);
 		dom.sendBtn.classList.remove('generating');
 
 		let stats = null;
@@ -1493,8 +1540,11 @@ dom.model.onchange = () => {
 document.getElementById('save-settings-btn').onclick = () => {
 	const prevUrl = localStorage.getItem('app_url');
 	const url = dom.endpoint.value.trim();
+	const currentHost = window.location.hostname;
+	const isInternal = url.includes('127.0.0.1') || url.includes('localhost') || (currentHost && url.includes(currentHost));
+
 	// Alert the user if they're pointing messages at an internet address.
-	if (url && !url.includes('127.0.0.1') && !url.includes('localhost') &&
+	if (url && !isInternal &&
 		!url.match(/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/)) {
 		console.warn("External endpoint configured.");
 		alert(APP_TRANSLATIONS[currentLang].externalEndpointWarning);
@@ -1517,15 +1567,7 @@ document.getElementById('save-settings-btn').onclick = () => {
 		return;
 	}
 
-	const selOpt = dom.model.selectedOptions[0];
-	const dispSize = selOpt?.dataset?.size;
-	dom.modelDisplay.innerText = (isOllamaMode() && dispSize && dispSize !== '---')
-		? `${dom.model.value} (${dispSize} GB)`
-		: dom.model.value || '---';
-
-	updateModelStats();
-	preloadModel();
-	fetchModels();
+	updateModelDisplay();
 	dom.settingsModal.classList.add('hidden');
 };
 

@@ -138,7 +138,7 @@ const APP_TRANSLATIONS = {
 		fileTooLarge: "Súbor presahuje limit 10MB.",
 		imageLabel: "Obrázok",
 		updateAvailable: "Nová verzia je dostupná!",
-		updateLink: "(Aktualizácia)",
+		updateLink: "(Update)",
 		langName: "Slovenčina",
 		welcomeHeading: "Ahoj",
 		welcomeSubheading: "S čím ti môžem dnes pomôcť?",
