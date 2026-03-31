@@ -284,6 +284,10 @@ body {
 
   .sidebar.collapsed .sidebar-pill {
     padding: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50% !important;
+    justify-content: center;
   }
 
   .sidebar.collapsed .sidebar-pill span {
@@ -1728,4 +1732,17 @@ input:checked+.slider:after {
 
 input:focus+.slider {
   box-shadow: 0 0 4px var(--primary);
+}
+
+/* Cloud Model Styles */
+.cloud-model {
+  color: var(--danger) !important;
+}
+.status-cloud {
+  color: var(--danger) !important;
+  font-weight: 500;
+}
+.cloud-icon {
+  color: var(--danger) !important;
+  font-style: normal;
 }
